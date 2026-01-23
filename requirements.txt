@@ -1,0 +1,11 @@
+jupyterlab
+ipython
+
+sympy
+numpy
+scipy
+pandas
+matplotlib
+
+control
+opencv-python
