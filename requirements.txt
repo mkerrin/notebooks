@@ -9,3 +9,7 @@ matplotlib
 
 control
 opencv-python
+
+# mapping
+geopandas
+contextily
