@@ -1,4 +1,6 @@
 jupyterlab
+ipywidgets
+ipympl
 ipython
 
 sympy
