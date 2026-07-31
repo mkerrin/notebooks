@@ -7,6 +7,7 @@ from scipy.integrate import odeint
 import matplotlib.pyplot as plt
 from matplotlib import animation
 from matplotlib.animation import PillowWriter
+import dill
 
 # block 1 - define constants for equation of motion
 t, m, M, g, L, d, b = sp.symbols(r't m M g L \delta b')
@@ -21,6 +22,8 @@ x_d = sp.diff(x, t)
 x_dd = sp.diff(x_d, t)
 
 u = u(t)
+
+values = {M: 5, m: 1, L: 2, g: 10, d: 1}
 
 # block 2 - define variables to calculate the coordinates of the system
 
@@ -45,7 +48,7 @@ y_ground = L + y_pend
 V = m * g * y_ground
 
 # calculate the lagrange equation
-Le = T - V
+LE = T - V
 
 # solve the langrange equation to calculate the equation of motion
 W_x = sp.diff(sp.diff(LE, x_d), t) - sp.diff(LE, x)
@@ -72,6 +75,29 @@ f = sp.Matrix([
 ])
 f.simplify()
 
+# Start using values
+
+f2 = f.subs(values)
+f2.simplify()
+
+# from equation generate numerically functions we can simulate 
+args = [*list(S), u]
+f_lambda = sp.lambdify(args, f.subs(values))
+
+# save dynamics
+import pdb
+pdb.set_trace()
+with open("inverted-pendulum-on-cart.pkl", "wb") as fp:
+    dill.dump(f_lambda, fp, recurse=True)
+
+with open("inverted-pendulum-on-cart-f.pkl", "wb") as fp:
+    dill.dump(f, fp, recurse=True)
+
+def dSdt(S, t, uf):    
+    u = uf(S)
+
+    return f_lambda(*S, u).T[0]
+
 A = f.jacobian(S).subs({the: sp.pi})
 A.simplify()
 
@@ -83,31 +109,32 @@ B = sp.Matrix([
     1 / (M * L)
 ])
 
-values = {M: 5, m: 1, L: 2, g: 10, d: 1}
-
 A_up = A.subs(values)
 B_up = B.subs(values)
 
 A_up2 = np.array(A_up, dtype=np.float64)
 B_up2 = np.array(B_up, dtype=np.float64)
 
-p = [-0.3, -0.4, -0.5, -0.6]
-p = [-1, -1.1, -1.2, -1.3]  # working but a bit slow getting there
+# Pole placements
+# p = [-0.3, -0.4, -0.5, -0.6]
+# p = [-1, -1.1, -1.2, -1.3]  # working but a bit slow getting there
 p = [-3, -3.1, -3.2, -3.3]  # to aggresive and blows up
 K = ct.place(A_up2, B_up2, p)
 
-# from equation generate numerically functions we can simulate 
-args = [*list(S), u]
-f_lambda = sp.lambdify(args, f.subs(values))
+# LQR
+Q = np.diag(np.array([10, 1, 10, 100]))  # 10 means what theta controlled quickly
+R = .001  # energy
+K, S, E = ct.lqr(A_up2, B_up2, Q, R)
 
-def dSdt(S, t, uf):    
-    u = uf(S)
-
-    return f_lambda(*S, u).T[0]
+eig = np.linalg.eig(A_up2 - B_up2 * K)
+print(eig.eigenvalues)
+print(eig.eigenvectors)
+print(np.diag(np.real(eig.eigenvalues)))
+print(eig.eigenvectors[0])
 
 t = np.linspace(0, 10, 1000)
 
-y0 = [-1, 0, np.pi * 0.9, 0]
+y0 = [-3, 0, np.pi + 0.1, 0]
 
 wr = np.array([0, 0, np.pi, 0])
 uf = lambda S: np.dot(-K, (S - wr))[0]
@@ -124,8 +151,9 @@ fig, ax = plt.subplots(1,1, figsize=(8,8))
 ax.grid()
 ln1, = plt.plot([], [], 'ro--', lw=3, markersize=8)
 ax.set_ylim(-2, 2)
-ax.set_xlim(-2,2)
+ax.set_xlim(-4,4)
 ax.set_xlabel("X")
 ax.set_ylabel("Y")
 ani = animation.FuncAnimation(fig, animate, frames=1000, interval=50)
+# ani.save('test.gif',writer='pillow',fps=50)
 plt.show()
